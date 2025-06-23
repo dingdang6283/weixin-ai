@@ -6,7 +6,6 @@ import time
 import requests
 from wxauto import *
 import os
-#import subprocess
 import tkinter as tk
 from tkinter import messagebox
 import configparser
@@ -26,17 +25,18 @@ time.sleep(2)
 if not any([args.start, args.download, args.debug]):
     print('请添加必要的参数来启动程序，可用参数有： --start（启动程序）， --download（下载所需的库）， --debug（启动调试模式）')
     time.sleep(1)
-    input('按回车键退出...')
+    input('按回车键退出...') 
     import sys
-    sys.exit(1)
+    #sys.exit(1)
     
 
 if args.download:
     import subprocess
     subprocess.run(['pip', 'install', '-r', 'requirements.txt'])
-    print('安装完成')
+    print('安装结束')
     import sys
     input('按回车键继续...')
+    
 
 if args.debug:
     logging.basicConfig(level=logging.DEBUG)
@@ -44,6 +44,7 @@ if not args.start and not os.path.exists('setting.ini'):
     print('请使用 --start 参数来启动程序进行初始化。')
     import sys
     input('按回车键退出...')
+    sys.exit(1)
 
 if args.start:
     # 检测 setting.ini 文件
@@ -99,7 +100,8 @@ if args.start:
 
 # 读取配置文件
 config = configparser.ConfigParser()
-config.read('setting.ini')
+# 修改为以 utf-8 编码读取文件
+config.read('setting.ini', encoding='utf-8')
 ADMIN_USER = config.get('Settings', 'AdminName')
 GROUP_KEYWORDS = config.get('Settings', 'GroupKeywords').split(',')
 PERSONAL_KEYWORDS = config.get('Settings', 'PersonalKeywords').split(',')
@@ -109,7 +111,7 @@ while True:
         nicknames = []
         # 获取微信窗口对象
         wx = WeChat()
-        print("--------------------------")
+        print("-------------------------------------------------------------------------------------")
         # 可以通过的词语
         pass_WORLD = ['抖音']
 
@@ -260,22 +262,24 @@ while True:
         def newfriend():
             try:
                 find = 0
-                new_friend1 = []
+                
                 new = wx.GetNewFriends()
                 for friend in new:
-                    friend = new[0]
+                    l=len(new)
+                    for i in range(l):
+                        friend = new[0]
 
-                    # 接受好友请求，并且添加备注“备注张三”、添加标签wxauto
-                    friend.Accept(remark=friend.name, tags=['1'])
-                    print(add_user_to_file(friend.name))
-                    # 获取好友申请昵称
-                    # 张三
+                        # 接受好友请求，并且添加备注“备注张三”、添加标签wxauto
+                        friend.Accept(remark=friend.name, tags=['user'])
+                        print(add_user_to_file(friend.name))
+                        # 获取好友申请昵称
+                        # 张三
 
-                    wx.SendMsg(new_ts, who=friend.name)
-                    print(friend.msg)  # 获取好友申请信息
-                    # 你好,我是xxx群的张三
-                    wx.SendMsg(f"同意了-用户名： {friend.name}的好用请求", ADMIN_USER)
-                    find = 1
+                        wx.SendMsg(new_ts, who=friend.name)
+                        print(friend.msg)  # 获取好友申请信息
+                        # 你好,我是xxx群的张三
+                        wx.SendMsg(f"同意了-用户名： {friend.name}的好用请求", ADMIN_USER)
+                        find = 1
                     # 切换回聊天页面
                 if find == 1:
                         read()
@@ -330,32 +334,35 @@ while True:
         def filter_dirty_words_api(text):
             try:
                 for item in pass_WORLD:
-                    if item in text:
+                    if not (item in text):
                         response = requests.get(f'https://api.yyy001.com/api/Forbidden?text={text}')
                         response.raise_for_status()
                         data = response.json()
+                        logging.error(data)
                         ban_count = data.get('data', {}).get('banCount', 0)
                         if ban_count > 0:
                             ban_list = data.get('data', {}).get('banList', [])
                             dirty_words = [item.get('word') for item in ban_list if item.get('word')]
+                            because = ban_list[0].get('explanation')
+                            category = ban_list[0].get('category')
                             save_dirty_words(dirty_words)
-                            return True
-                        return False
+                            return True,because,category
+                        return False,None,None
                     else:
-                        return False
+                        return False,None,None
             except (requests.RequestException, ValueError) as e:
                 logging.error(f'获取敏感词 API 出错: {e}')
-                return False
+                return False,None,None
 
 
         # 提问函数
         def ask(ask_qu, user_id):
-            has_dirty_word = filter_dirty_words_api(ask_qu)
+            has_dirty_word,because,category = filter_dirty_words_api(ask_qu)
             if has_dirty_word:
                 nm = random.randint(0, 10)
 
-                logging.critical('检测到敏感词: ' + ask_qu)
-                return '出现敏感词'
+                logging.critical('log 检测到敏感词: ' + ask_qu)
+                return '出现敏感词\n  '+ask_qu+'  分类：'+category+'\n  因为'+because
             else:
                 try:
                     inof = str('ask:' + ask_qu + '')
@@ -374,7 +381,7 @@ while True:
                     return answer
                 except Exception as e:
                     logging.error('ERROR: ' + str(e))
-                    return 'null'
+                    return 'ERROR: ' + str(e)
 
 
         def yy(txt):  # 语音合成
@@ -448,8 +455,8 @@ while True:
                 return result_msg
             except Exception as e:
                 error_msg = f"发送通知时出现错误: {e}"
-                print(error_msg)
-                return error_msg
+                print(result_msg)
+                return result_msg
 
 
         # 处理用户输入的函数
@@ -551,9 +558,9 @@ while True:
                                 print(ADMIN_USER)
                                 print(msg.content)
                                 print(str('/' in msg.content ))
-                                if (not (sender.rjust(20).replace(" ", "") != ADMIN_USER and '/' in msg.content) and (any(keyword in msg.content for keyword in PERSONAL_KEYWORDS))):
+                                print((any(keyword in msg.content for keyword in GROUP_KEYWORDS)))
+                                if (not (sender.rjust(20).replace(" ", "") != ADMIN_USER and '/' in msg.content) and (any(keyword in msg.content for keyword in PERSONAL_KEYWORDS))or (any(keyword in msg.content for keyword in GROUP_KEYWORDS))):
 
-                                
                                         print(f'rx→：{msg.content}')
                                         txt = msg.content.replace("*", "")
                                         # ！！！ 回复收到，此处为`chat`而不是`wx` ！！！
