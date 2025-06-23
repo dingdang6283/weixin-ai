@@ -1,6 +1,5 @@
 import logging
 import argparse
-from math import e
 import random
 import time
 import requests
@@ -335,34 +334,32 @@ while True:
             try:
                 for item in pass_WORLD:
                     if not (item in text):
-                        response = requests.get(f'https://api.yyy001.com/api/Forbidden?text={text}')
-                        response.raise_for_status()
-                        data = response.json()
-                        logging.error(data)
-                        ban_count = data.get('data', {}).get('banCount', 0)
-                        if ban_count > 0:
-                            ban_list = data.get('data', {}).get('banList', [])
-                            dirty_words = [item.get('word') for item in ban_list if item.get('word')]
-                            because = ban_list[0].get('explanation')
-                            category = ban_list[0].get('category')
-                            save_dirty_words(dirty_words)
-                            return True,because,category
-                        return False,None,None
+                        response = requests.get(f'http://api.zhyunxi.com/api.php?api=5&key={id}&text={text}')
+                        response.encoding = 'utf-8'
+                        data = response.json().get('data')
+                        data=data[0]
+                        data=data.get("words")
+                        print(data)
+                        ban=data
+                        if data:
+                            save_dirty_words(ban)
+                            return True
+                        return False
                     else:
-                        return False,None,None
+                        return False
             except (requests.RequestException, ValueError) as e:
                 logging.error(f'获取敏感词 API 出错: {e}')
-                return False,None,None
+                return False
 
 
         # 提问函数
         def ask(ask_qu, user_id):
-            has_dirty_word,because,category = filter_dirty_words_api(ask_qu)
+            has_dirty_word = filter_dirty_words_api(ask_qu)
             if has_dirty_word:
                 nm = random.randint(0, 10)
 
                 logging.critical('log 检测到敏感词: ' + ask_qu)
-                return '出现敏感词\n  '+ask_qu+'  分类：'+category+'\n  因为'+because
+                return '出现敏感词\n  '+ask_qu
             else:
                 try:
                     inof = str('ask:' + ask_qu + '')
@@ -437,6 +434,14 @@ while True:
                             if user not in blocked_users:
                                     try:
                                         # 直接使用 wx.SendMsg 发送消息到指定用户
+                                        try:
+                                            text = user
+                                            if text.startswith('\ufeff'):
+                                                text = text[1:]
+                                            print(text)
+                                            user=text
+                                        except:
+                                            pass
                                         wx.SendMsg(content, user)
                                         print(f"通知内容已发送给用户 {user}。")
                                         # 向管理员反馈
@@ -561,20 +566,18 @@ while True:
                                 print((any(keyword in msg.content for keyword in GROUP_KEYWORDS)))
                                 if (not (sender.rjust(20).replace(" ", "") != ADMIN_USER and '/' in msg.content) and (any(keyword in msg.content for keyword in PERSONAL_KEYWORDS))or (any(keyword in msg.content for keyword in GROUP_KEYWORDS))):
 
-                                        print(f'rx→：{msg.content}')
-                                        txt = msg.content.replace("*", "")
+                                        
+                                        txt = msg.content.replace(PERSONAL_KEYWORDS[0], "").replace(GROUP_KEYWORDS[0], "")
+                                        print(f'rx→：{txt}')
                                         # ！！！ 回复收到，此处为`chat`而不是`wx` ！！！
                                         if '，语音' in txt:
                                             chat.SendMsg(
                                             f'@{sender.rjust(20).replace(" ", "")}  ' + yy(
-                                                ask(txt.replace("，语音", "").replace("PERSONAL_KEYWORDS", ""),
+                                                ask(txt.replace("，语音", ""),
                                                     sender.rjust(20).replace(" ", ""))))  # 此处将msg.content传递给大模型，再由大模型返回的消息回复即可实现ai聊天
                                         else:
-                                            chat.SendMsg(
-                                                f'@{sender.rjust(20).replace(" ", "")}  ' + ask(txt,
-                                                                                            sender.rjust(20).replace("PERSONAL_KEYWORDS",
-                                                                                                                        "").replace(
-                                                                                                " ", "")))  # 此处将msg.content传递给大模型，再由大模型返回的消息回复即可实现ai聊天
+                                           
+                                            chat.SendMsg(f'@{sender.rjust(20).replace(" ", "")}  ' + ask(txt,sender.rjust(20).replace(" ", "")))  # 此处将msg.content传递给大模型，再由大模型返回的消息回复即可实现ai聊天
                                 elif sender.rjust(20).replace(" ", "") == ADMIN_USER and '/' in msg.content:
                                     for chat in msgs:
                                         one_msgs = msgs.get(chat)  # 获取消息内容
